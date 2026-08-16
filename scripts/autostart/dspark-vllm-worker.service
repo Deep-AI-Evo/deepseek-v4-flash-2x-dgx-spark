@@ -1,0 +1,18 @@
+[Unit]
+Description=DeepSeek-V4-Flash-0731 DSpark vLLM worker container ensure
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=600
+StartLimitBurst=5
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=%h/projects/dsv4-autostart/worker/dspark-vllm-ensure.sh
+Restart=on-failure
+RestartSec=60
+TimeoutStartSec=1200
+KillMode=process
+
+[Install]
+WantedBy=default.target

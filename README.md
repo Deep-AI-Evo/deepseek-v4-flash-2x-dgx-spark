@@ -19,6 +19,12 @@
 > 部署日期：2026-08-15　环境：2× NVIDIA DGX Spark（GB10，128GB 统一内存），QSFP 直连
 > 基于 [MiaAI-Lab 的 DSpark 配方](https://github.com/MiaAI-Lab/DeepSeek-v4-Flash-DSpark-2x-DGX-Spark)，感谢原作者
 
+> 📌 **2026-08-16 运行态更新**：已切换为**纯文本档（60 万上下文 × 3 并发，util 0.80）**，
+> 视觉能力外迁到 RTX Pro 5000（Qwen3.8-27B-NVFP4，MCP 远程调用），并补齐双机开机自启、
+> 内核加固、监控面板一键启动。原因与全部细节见
+> [docs/ops-autostart-and-remote-vision.md](docs/ops-autostart-and-remote-vision.md)。
+> 下方为 8-15 首日实录（含 1M 上下文 + 本地视觉共存方案），保留备查。
+
 ## 📌 为什么需要两台
 
 DeepSeek-V4-Flash-0731 是 FP8 量化的 MoE 模型（256 专家 / top-6，43 层），权重 **166.9GB**。
@@ -110,7 +116,9 @@ cp .env.dspark.example .env.dspark   # 按本仓库 docs 填双机地址/HCA/GID
 
 - `README.md` / `README.en.md` —— 本文 / English version
 - `tests/nccl_test.py` —— 双机 NCCL 最小验证脚本
-- `docs/` —— 配置文件参考（`.env.dspark` 实战版、sidecar compose 改动）
+- `docs/` —— 配置文件参考（`.env.dspark` 实战版、sidecar compose 改动）、
+  [运维加固与视觉外迁](docs/ops-autostart-and-remote-vision.md)（2026-08-16 更新）
+- `scripts/autostart/` —— 双机 user 级 systemd 自启 + 三级自愈脚本 + 内核加固（免 root 安装）
 
 ## 👤 作者
 

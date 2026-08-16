@@ -1,0 +1,21 @@
+[Unit]
+Description=DeepSeek-V4-Flash-0731 DSpark vLLM (dual-node, head orchestrates worker)
+Documentation=https://github.com/MiaAI-Lab/DeepSeek-v4-Flash-DSpark-2x-DGX-Spark
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=600
+StartLimitBurst=5
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=%h/projects/dsv4-autostart/head/dspark-vllm-start.sh
+ExecStop=%h/projects/dsv4-autostart/head/dspark-vllm-stop.sh
+Restart=on-failure
+RestartSec=60
+TimeoutStartSec=1800
+TimeoutStopSec=600
+KillMode=process
+
+[Install]
+WantedBy=default.target

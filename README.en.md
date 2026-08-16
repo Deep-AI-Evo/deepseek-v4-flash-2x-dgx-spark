@@ -19,6 +19,13 @@
 > Date: 2026-08-15　Setup: 2× NVIDIA DGX Spark (GB10, 128GB unified memory), QSFP direct attach
 > Built on the [MiaAI-Lab DSpark recipe](https://github.com/MiaAI-Lab/DeepSeek-v4-Flash-DSpark-2x-DGX-Spark) — credit to the authors.
 
+> 📌 **2026-08-16 ops update**: switched to a **text-only profile (600K context × 3 concurrent,
+> util 0.80)** and moved vision to a remote RTX Pro 5000 (Qwen3.8-27B-NVFP4, called via MCP over
+> LAN HTTP), plus dual-node systemd autostart, kernel hardening, and a one-click start button on
+> the monitor dashboard. Rationale and full details (Chinese):
+> [docs/ops-autostart-and-remote-vision.md](docs/ops-autostart-and-remote-vision.md).
+> Below is the original day-one write-up (1M context + co-located vision), kept for reference.
+
 ## 📌 Why two machines
 
 DeepSeek-V4-Flash-0731 is an FP8-quantized MoE (256 experts / top-6, 43 layers) weighing
