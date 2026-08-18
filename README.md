@@ -27,7 +27,8 @@
 
 > 🌡️ **2026-08-19 运行态更新**：修复 vLLM 的 Spin-Wait 空转发热问题——`busy_loop_s`
 > 默认 1 秒导致 3-4 个 CPU 大核全程 100% 空转（聚合利用率仅 ~20%，持续高负载峰值达 95℃），
-> 一行补丁（1 → 0.002）后同负载 CPU 温度降 6.8~14.8℃，吞吐无损。
+> 一行补丁（1 → 0.002）后严格 A/B 实测：1/2/3 并发下 head 节点 SoC 峰值稳定降
+> 11.6~12.7℃（91-93℃ → 78-81℃），吞吐无损。
 > 实测数据、双机补丁步骤与回滚方法见
 > [docs/vllm-spinwait-thermal-fix.md](docs/vllm-spinwait-thermal-fix.md)
 > （致谢 nacyot 原始诊断与 drowzeys 的英文整理）。
@@ -91,7 +92,7 @@ DeepSeek-V4-Flash-0731 是 FP8 量化的 MoE 模型（256 专家 / top-6，43 �
 | 8 | "速度只有官方一半" | 测量方法污染：请求带 `thinking=max` 长思考 + 计时含 TTFT | 用官方 `scripts/benchmark-0731.py` 同方法对比 |
 | 9 | 双 rail 反而更慢 | 小消息 allreduce 是延迟敏感，双 rail 条带化反而添乱 | 保持官方默认单 rail |
 | 10 | vllm 要 FP8 KV | DeepSeek V4 fp8_ds_mla 布局强制 | `--kv-cache-dtype fp8`（DSpark 镜像用 nvfp4_ds_mla） |
-| 11 | 负载下 SoC 90℃+（实测峰值 95℃），但聚合 CPU 利用率 <20% | vLLM IPC 空转：`busy_loop_s` 默认 1s，解码消息几毫秒一次导致睡眠分支永不触发，3-4 个大核全程 100% 空转（`mpstat -P ALL` 可见） | 一行补丁 `1 → 0.002` + 薄层派生镜像，同负载 CPU 降 6.8~14.8℃、吞吐无损，见 [docs/vllm-spinwait-thermal-fix.md](docs/vllm-spinwait-thermal-fix.md) |
+| 11 | 负载下 SoC 90℃+（实测峰值 95℃），但聚合 CPU 利用率 <20% | vLLM IPC 空转：`busy_loop_s` 默认 1s，解码消息几毫秒一次导致睡眠分支永不触发，3-4 个大核全程 100% 空转（`mpstat -P ALL` 可见） | 一行补丁 `1 → 0.002` + 薄层派生镜像，严格 A/B 实测 head 节点三档并发降 11.6~12.7℃、吞吐无损，见 [docs/vllm-spinwait-thermal-fix.md](docs/vllm-spinwait-thermal-fix.md) |
 
 ## 🔧 关键工具与技巧
 

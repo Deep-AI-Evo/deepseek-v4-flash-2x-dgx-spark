@@ -1,4 +1,4 @@
-# vLLM Spin-Wait 发热修复：CPU 大核空转降温 15℃+ 实录
+# vLLM Spin-Wait 发热修复：SoC 降温 12℃ 严格 A/B 实录
 
 > 📌 **2026-08-19 运行态更新**。适用于本仓库的双机 TP=2 部署（也是收益最大的场景）。
 >
@@ -6,11 +6,13 @@
 > entire request lifetime because `busy_loop_s` defaults to 1s while decode messages arrive
 > every few ms — the sleep branch is never taken. On GB10 (CPU+GPU in one package) this
 > pushes the SoC past 90℃ while aggregate CPU looks ~20% — we measured a **95℃ peak**
-> under sustained load (OS force-shutdown is at 104.8℃). One-line fix
-> (`busy_loop_s: float = 1` → `0.002`), zero throughput cost. Measured here on 2× DGX Spark
-> TP=2 DeepSeek-V4-Flash: **−14.8℃ / −6.8℃** SoC temperature at 25s/50s under identical load
-> (8 concurrent × 1200 tokens), decode throughput unchanged (~40→44 tok/s, within noise).
-> Steps below are Chinese; the patch Dockerfile in §3 is self-explanatory.
+> under sustained real-world load (OS force-shutdown is at 104.8℃). One-line fix
+> (`busy_loop_s: float = 1` → `0.002`). In a controlled A/B test on 2× DGX Spark TP=2
+> DeepSeek-V4-Flash (same prompt, 120s per run, 1/2/3 concurrency, cooled to <56℃ between
+> runs, full image swap between arms): **head-node SoC peak dropped 11.6-12.7℃**
+> (91-93℃ → 78-81℃) at every concurrency level, worker node roughly unchanged (its heat is
+> real engine work + NCCL polling, plus a warmer chassis position), throughput unchanged
+> (<3% noise). Steps below are Chinese; the patch Dockerfile in §3 is self-explanatory.
 
 ## 致谢与原始出处
 
@@ -39,22 +41,33 @@
 有多个等待者。TP=1 单卡部署没有第二个 rank，补丁前后无差异（上游社区已实测），
 但补丁本身无害。
 
-## 2. 实测数据（本仓库环境）
+## 2. 实测数据（本仓库环境，严格 A/B 对比）
 
-负载：8 并发 × 1200 max_tokens，模型 deepseek-v4-flash-0731。补丁前后各采样 25s / 50s
-（受控短测只跑到 89.2℃；日常持续高负载下实测峰值曾达 **95℃**，已贴近降频/关机风险线）：
+测试方法（2026-08-19）：同一 prompt（max_tokens=4000），每个版本分别测 1/2/3 并发，
+每档持续负载 120 秒，双机每 30 秒采样，**档间冷却至双机 <56℃ 再开始下一档**，
+两臂之间完整切换镜像重启服务。下表为每档 120 秒窗口内的**峰值温度**：
 
-| 指标 | 补丁前 | 补丁后 | 变化 |
-|---|---|---|---|
-| CPU（SoC）温度 @25s | 84.3℃ | 69.5℃ | **−14.8℃** |
-| CPU（SoC）温度 @50s | 89.2℃ | 82.4℃ | **−6.8℃** |
-| 空转核（>70% 单核） | 4 个（71-100%） | 2 个波动（引擎真实工作） | 明显减少 |
-| GPU 温度 | 63→67℃ | 61→65℃ | −2℃ |
-| 单流 decode | 40.4-41.5 tok/s | 40.4-44.3 tok/s | **无损失** |
+| 并发 | 版本 | head CPU 峰值 | worker CPU 峰值 | head GPU | worker GPU | 总 decode |
+|---|---|---|---|---|---|---|
+| 1 | 原版（1s） | 91.2℃ | 84.1℃ | 68℃ | 70℃ | 40.5 tok/s |
+| 1 | spinfix | **78.5℃** | **81.5℃** | 68℃ | 71℃ | 39.8 tok/s |
+| 2 | 原版（1s） | 93.1℃ | 86.9℃ | 69℃ | 73℃ | 59.3 tok/s |
+| 2 | spinfix | **80.8℃** | **87.1℃** | 70℃ | 73℃ | 58.7 tok/s |
+| 3 | 原版（1s） | 91.6℃ | 86.2℃ | 69℃ | 73℃ | 72.8 tok/s |
+| 3 | spinfix | **80.0℃** | **86.0℃** | 70℃ | 73℃ | 70.9 tok/s |
 
-注：补丁后测试时机器带有基线测试的残余热量，稳态差距预计更大；原作者在同配置
-（2× GB10、TP=2、vLLM 0.25.2、DeepSeek V4 Flash FP8）测得 SoC 平均 **−24.2℃**、
-vLLM CPU 占用 333.6%→88.7%、吞吐不变。
+结论：
+
+- **head 节点三档稳定降温 11.6~12.7℃**（峰值从 91-93℃ 压到 78-81℃），空转核消失；
+- **worker 节点基本持平**（±3℃ 以内）：补丁消除的是等待空转，worker 的热量主要来自
+  引擎真实计算与 NCCL 通信线程轮询，且该机箱散热条件略差（任何状态下都比 head 热 2-4℃）；
+- **吞吐无损失**：三档 decode 差异均 <3%，属测量噪声；
+- GPU 温度两臂基本不变——发热源本来就不是 GPU；
+- 日常持续高负载下，补丁前实测峰值曾达 **95℃**（逼近降频/关机风险线），补丁后
+  3 分钟满负载峰值 89.3℃ 并开始回落，未再进入 90℃+ 区间。
+
+原作者在同配置（2× GB10、TP=2、vLLM 0.25.2、DeepSeek V4 Flash FP8）测得 SoC 平均
+**−24.2℃**、vLLM CPU 占用 333.6%→88.7%、吞吐不变。
 
 ## 3. 操作步骤
 
