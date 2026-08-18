@@ -28,7 +28,7 @@
 
 > 🌡️ **2026-08-19 ops update**: applied the vLLM spin-wait thermal fix — the default
 > `busy_loop_s = 1` keeps 3-4 performance cores spinning at 100% for the whole request
-> (aggregate CPU looks ~20% while the SoC bakes at 90℃). A one-line patch (`1` → `0.002`)
+> (aggregate CPU looks ~20% while the SoC peaks at 95℃ under sustained load). A one-line patch (`1` → `0.002`)
 > dropped CPU temperature by 6.8-14.8℃ under identical load with zero throughput cost.
 > Measurements, dual-node patch steps and rollback:
 > [docs/vllm-spinwait-thermal-fix.md](docs/vllm-spinwait-thermal-fix.md) (Chinese, with an

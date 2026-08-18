@@ -5,7 +5,8 @@
 > **English summary**: vLLM's `SpinCondition.wait()` spins on performance cores for the
 > entire request lifetime because `busy_loop_s` defaults to 1s while decode messages arrive
 > every few ms — the sleep branch is never taken. On GB10 (CPU+GPU in one package) this
-> pushes the SoC past 90℃ while aggregate CPU looks ~20%. One-line fix
+> pushes the SoC past 90℃ while aggregate CPU looks ~20% — we measured a **95℃ peak**
+> under sustained load (OS force-shutdown is at 104.8℃). One-line fix
 > (`busy_loop_s: float = 1` → `0.002`), zero throughput cost. Measured here on 2× DGX Spark
 > TP=2 DeepSeek-V4-Flash: **−14.8℃ / −6.8℃** SoC temperature at 25s/50s under identical load
 > (8 concurrent × 1200 tokens), decode throughput unchanged (~40→44 tok/s, within noise).
@@ -22,7 +23,8 @@
 ## 1. 现象与根因
 
 **现象**：双机跑 DeepSeek-V4-Flash 推理时，聚合 CPU 利用率不到 20%，但 SoC/CPU 温度
-持续 90℃ 上下——GPU 反而不算热。
+持续 90℃ 上下，**长时间高负载实测峰值达 95℃**——已逼近危险区（GB10 的 OS 强制关机
+阈值为 104.8℃，社区有机型在 87℃ 附近就触发关机），GPU 反而不算热。
 
 **根因**：vLLM 进程间通过共享内存环形队列通信，读端 `SpinCondition.wait()` 采用
 "先空转 `busy_loop_s` 秒、再睡眠等 zmq 唤醒"的混合策略。但 `busy_loop_s` 默认 **1 秒**，
@@ -39,7 +41,8 @@
 
 ## 2. 实测数据（本仓库环境）
 
-负载：8 并发 × 1200 max_tokens，模型 deepseek-v4-flash-0731。补丁前后各采样 25s / 50s：
+负载：8 并发 × 1200 max_tokens，模型 deepseek-v4-flash-0731。补丁前后各采样 25s / 50s
+（受控短测只跑到 89.2℃；日常持续高负载下实测峰值曾达 **95℃**，已贴近降频/关机风险线）：
 
 | 指标 | 补丁前 | 补丁后 | 变化 |
 |---|---|---|---|
