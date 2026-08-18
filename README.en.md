@@ -26,6 +26,14 @@
 > [docs/ops-autostart-and-remote-vision.md](docs/ops-autostart-and-remote-vision.md).
 > Below is the original day-one write-up (1M context + co-located vision), kept for reference.
 
+> 🌡️ **2026-08-19 ops update**: applied the vLLM spin-wait thermal fix — the default
+> `busy_loop_s = 1` keeps 3-4 performance cores spinning at 100% for the whole request
+> (aggregate CPU looks ~20% while the SoC bakes at 90℃). A one-line patch (`1` → `0.002`)
+> dropped CPU temperature by 6.8-14.8℃ under identical load with zero throughput cost.
+> Measurements, dual-node patch steps and rollback:
+> [docs/vllm-spinwait-thermal-fix.md](docs/vllm-spinwait-thermal-fix.md) (Chinese, with an
+> English summary at the top; credits to nacyot's original analysis and drowzeys' write-up).
+
 ## 📌 Why two machines
 
 DeepSeek-V4-Flash-0731 is an FP8-quantized MoE (256 experts / top-6, 43 layers) weighing

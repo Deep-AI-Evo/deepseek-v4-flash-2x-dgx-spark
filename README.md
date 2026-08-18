@@ -25,6 +25,13 @@
 > [docs/ops-autostart-and-remote-vision.md](docs/ops-autostart-and-remote-vision.md)。
 > 下方为 8-15 首日实录（含 1M 上下文 + 本地视觉共存方案），保留备查。
 
+> 🌡️ **2026-08-19 运行态更新**：修复 vLLM 的 Spin-Wait 空转发热问题——`busy_loop_s`
+> 默认 1 秒导致 3-4 个 CPU 大核全程 100% 空转（聚合利用率仅 ~20% 却烤到 90℃），
+> 一行补丁（1 → 0.002）后同负载 CPU 温度降 6.8~14.8℃，吞吐无损。
+> 实测数据、双机补丁步骤与回滚方法见
+> [docs/vllm-spinwait-thermal-fix.md](docs/vllm-spinwait-thermal-fix.md)
+> （致谢 nacyot 原始诊断与 drowzeys 的英文整理）。
+
 ## 📌 为什么需要两台
 
 DeepSeek-V4-Flash-0731 是 FP8 量化的 MoE 模型（256 专家 / top-6，43 层），权重 **166.9GB**。
