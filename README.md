@@ -91,6 +91,7 @@ DeepSeek-V4-Flash-0731 是 FP8 量化的 MoE 模型（256 专家 / top-6，43 �
 | 8 | "速度只有官方一半" | 测量方法污染：请求带 `thinking=max` 长思考 + 计时含 TTFT | 用官方 `scripts/benchmark-0731.py` 同方法对比 |
 | 9 | 双 rail 反而更慢 | 小消息 allreduce 是延迟敏感，双 rail 条带化反而添乱 | 保持官方默认单 rail |
 | 10 | vllm 要 FP8 KV | DeepSeek V4 fp8_ds_mla 布局强制 | `--kv-cache-dtype fp8`（DSpark 镜像用 nvfp4_ds_mla） |
+| 11 | 负载下 SoC 90℃+（实测峰值 95℃），但聚合 CPU 利用率 <20% | vLLM IPC 空转：`busy_loop_s` 默认 1s，解码消息几毫秒一次导致睡眠分支永不触发，3-4 个大核全程 100% 空转（`mpstat -P ALL` 可见） | 一行补丁 `1 → 0.002` + 薄层派生镜像，同负载 CPU 降 6.8~14.8℃、吞吐无损，见 [docs/vllm-spinwait-thermal-fix.md](docs/vllm-spinwait-thermal-fix.md) |
 
 ## 🔧 关键工具与技巧
 
@@ -119,12 +120,17 @@ cp .env.dspark.example .env.dspark   # 按本仓库 docs 填双机地址/HCA/GID
 
 **注意**：主服务健康时再跑 `start-…` 会被拒绝（"container already exists"），这是防呆设计，先 `stop`。
 
+**强烈建议**：首次跑通后立即应用 **spin-wait 热修复**（一行补丁 + 薄层镜像，10 分钟搞定），
+否则持续高负载下 SoC 会冲到 90℃ 以上（我们实测峰值 95℃，逼近热关机）。
+步骤与实测数据：[docs/vllm-spinwait-thermal-fix.md](docs/vllm-spinwait-thermal-fix.md)。
+
 ## 🗂 仓库内容
 
 - `README.md` / `README.en.md` —— 本文 / English version
 - `tests/nccl_test.py` —— 双机 NCCL 最小验证脚本
 - `docs/` —— 配置文件参考（`.env.dspark` 实战版、sidecar compose 改动）、
-  [运维加固与视觉外迁](docs/ops-autostart-and-remote-vision.md)（2026-08-16 更新）
+  [运维加固与视觉外迁](docs/ops-autostart-and-remote-vision.md)（2026-08-16 更新）、
+  [vLLM spin-wait 发热修复实录](docs/vllm-spinwait-thermal-fix.md)（2026-08-19 更新）
 - `scripts/autostart/` —— 双机 user 级 systemd 自启 + 三级自愈脚本 + 内核加固（免 root 安装）
 
 ## 👤 作者

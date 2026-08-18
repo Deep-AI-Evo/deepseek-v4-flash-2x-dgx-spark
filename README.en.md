@@ -92,6 +92,7 @@ full-1M requests. An official high-throughput profile (200K context + 16 seqs) i
 | 8 | "Speed is half of published" | Measurement contamination: requests carried `thinking=max` and timing included TTFT | Compare with the official `scripts/benchmark-0731.py` |
 | 9 | Dual rail is *slower* | Small-message allreduce is latency-bound; rail striping adds overhead | Keep the documented single rail |
 | 10 | vLLM demands FP8 KV | DeepSeek V4 fp8_ds_mla layout is strict | `--kv-cache-dtype fp8` (the DSpark image uses nvfp4_ds_mla) |
+| 11 | SoC hits 90℃+ under load (95℃ peak measured) while aggregate CPU looks <20% | vLLM IPC spin-wait: `busy_loop_s` defaults to 1s; decode messages arrive every few ms so the sleep path never runs — 3-4 performance cores spin at 100% per request (visible via `mpstat -P ALL`) | One-line patch `1 → 0.002` + thin derived image; −6.8~14.8℃ under identical load, zero throughput cost — see [docs/vllm-spinwait-thermal-fix.md](docs/vllm-spinwait-thermal-fix.md) |
 
 ## 🔧 Useful tools & tricks
 
@@ -125,11 +126,18 @@ Management: `./status-…` / `./logs-…` / `./stop-…`. Vision: set `ENABLE_VL
 **Note**: re-running `start-…` while the main service is healthy is refused
 ("container already exists") — that's a guard, run `stop` first.
 
+**Strongly recommended**: apply the **spin-wait hotfix** right after your first successful
+start (one-line patch + thin image layer, ~10 minutes). Without it, sustained load pushes the
+SoC past 90℃ (we measured a 95℃ peak — near thermal shutdown). Steps and measurements:
+[docs/vllm-spinwait-thermal-fix.md](docs/vllm-spinwait-thermal-fix.md).
+
 ## 🗂 Repository contents
 
 - `README.md` / `README.en.md` — 中文 / this page
 - `tests/nccl_test.py` — minimal 2-node NCCL verification
-- `docs/` — battle-tested config references (`.env.dspark`, sidecar compose diff)
+- `docs/` — battle-tested config references (`.env.dspark`, sidecar compose diff),
+  [ops hardening & remote vision](docs/ops-autostart-and-remote-vision.md) (2026-08-16),
+  [vLLM spin-wait thermal fix write-up](docs/vllm-spinwait-thermal-fix.md) (2026-08-19)
 
 ## 👤 Author
 
